@@ -5,6 +5,7 @@ Tools for publishing the SceneNN datasets via ROS messages.
 1. Follow the instructions in [scenenn](https://github.com/scenenn/scenenn) and download the SceneNN data.
 Your folder structure should be at the and as follows:
 
+```
 scenenn_data
 ├── 123
 │   ├── depth        
@@ -22,8 +23,8 @@ scenenn_data
 └── intrinsic
     ├──  asus.ini  
     ├──  kinect2.ini
+```
 
-      
 2. Clone this repository to the `src` folder of your catkin workspace, build your workspace and source it.
 3. Run the script to write the SceneNN data to a rosbag as a ROS node with the following command:
 
