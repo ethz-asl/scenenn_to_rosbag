@@ -168,7 +168,7 @@ def camera_intrinsic_transform(intrinsics):
     pixel_height = intrinsics['depth_height']
 
     camera_intrinsics = np.zeros((3, 4))
-    camera_intrinsics[2, 2] = 1
+    camera_intrinsics[2, 2] = 1.0
     camera_intrinsics[0, 0] = fx
     camera_intrinsics[0, 2] = pixel_width / 2.0
     camera_intrinsics[1, 1] = fy
@@ -239,7 +239,7 @@ def publish(scenenn_path, scene, output_bag, to_frame):
     frame = 1
     while not rospy.is_shutdown() and frame < (to_frame + 1):
         timestamp = rospy.Time.from_sec(
-            timestamps[frame] / float(np.power(10, 6)))
+            timestamps[frame] / np.power(10.0, 6.0))
         transform = trajectory[frame - 1]
 
         publishTransform(transform, timestamp, frame_id, output_bag)
@@ -248,21 +248,22 @@ def publish(scenenn_path, scene, output_bag, to_frame):
 
         # Read RGB, Depth and Instance images for the current view.
         rgb_image = cv2.imread(
-            rgb_path_from_frame(scenenn_path, scene, frame), cv2.IMREAD_UNCHANGED)
+            rgb_path_from_frame(scenenn_path, scene, frame),
+            cv2.IMREAD_UNCHANGED)
         depth_image = cv2.imread(
-            depth_path_from_frame(scenenn_path, scene, frame), cv2.IMREAD_UNCHANGED)
+            depth_path_from_frame(scenenn_path, scene, frame),
+            cv2.IMREAD_UNCHANGED)
         instance_image_rgb = cv2.imread(
             instance_path_from_frame(scenenn_path, scene, frame),
             cv2.IMREAD_UNCHANGED)
-        instance_image = pack_rgba(instance_image_rgb[:, :, 0],
-                                   instance_image_rgb[:, :, 1],
-                                   instance_image_rgb[:, :, 2],
-                                   instance_image_rgb[:, :, 3])
+        instance_image = pack_rgba(
+            instance_image_rgb[:, :, 0], instance_image_rgb[:, :, 1],
+            instance_image_rgb[:, :, 2], instance_image_rgb[:, :, 3])
 
-        intrinsics = parse_intrinsics(scenenn_path)
-        camera_intrinsic_matrix = camera_intrinsic_transform(intrinsics)
-        # instance_image = cv2.undistort(
-        #     instance_image_d, camera_intrinsic_matrix[:, :3], np.zeros((1, 4)))
+        # TODO(ff): Add an option to match the labeled image to the RGB/depth
+        # image. Either a static offset or probably better some optimization
+        # that aligns the images (e.g. based on matching edges and optimize the
+        # scale and a translation).
 
         if (publish_object_segments):
             # Publish all the instances in the current view as pointclouds.
@@ -292,7 +293,8 @@ def publish(scenenn_path, scene, output_bag, to_frame):
                 object_segment_pcl.header = header
 
                 output_bag.write('/scenenn_node/object_segment',
-                                 object_segment_pcl, object_segment_pcl.header.stamp)
+                                 object_segment_pcl,
+                                 object_segment_pcl.header.stamp)
 
         if (publish_scene_pcl):
             # Publish the scene from the current view as pointcloud.
@@ -316,20 +318,20 @@ def publish(scenenn_path, scene, output_bag, to_frame):
             camera_info.header = header
 
             output_bag.write('/camera/rgb/camera_info', camera_info, timestamp)
-            output_bag.write('/camera/depth/camera_info',
-                             camera_info, timestamp)
+            output_bag.write('/camera/depth/camera_info', camera_info,
+                             timestamp)
 
         if (publish_instances):
             # Publish the instance data.
             color_instance_msg = cvbridge.cv2_to_imgmsg(
                 instance_image_rgb, "8UC4")
             color_instance_msg.header = header
-            output_bag.write('/camera/instances/image_raw',
-                             color_instance_msg, timestamp)
+            output_bag.write('/camera/instances/image_raw', color_instance_msg,
+                             timestamp)
 
         print("Dataset timestamp: " + str(timestamp.secs) + "." +
-              '{:09}'.format(timestamp.nsecs) +
-              "     Frame: " + str(frame) + " / " + str(len(timestamps)))
+              '{:09}'.format(timestamp.nsecs) + "     Frame: " + str(frame) +
+              " / " + str(len(timestamps)))
 
         frame += 1
 
@@ -337,14 +339,11 @@ def publish(scenenn_path, scene, output_bag, to_frame):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Write SceneNN data to a rosbag.')
-    parser.add_argument("-scenenn_data_folder",
-                        help="Path of the scenenn_data folder.")
-    parser.add_argument("-scene_id",
-                        help="ID of the SceneNN scene to read.")
-    parser.add_argument("-to_frame",
-                        help="Number of frames to write to bag.")
-    parser.add_argument("-output_bag",
-                        help="Path of the output rosbag.")
+    parser.add_argument(
+        "-scenenn_data_folder", help="Path of the scenenn_data folder.")
+    parser.add_argument("-scene_id", help="ID of the SceneNN scene to read.")
+    parser.add_argument("-to_frame", help="Number of frames to write to bag.")
+    parser.add_argument("-output_bag", help="Path of the output rosbag.")
 
     args = parser.parse_args()
     if args.scenenn_data_folder:
