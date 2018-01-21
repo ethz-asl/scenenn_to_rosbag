@@ -8,20 +8,20 @@ Your folder structure should be at the and as follows:
 ```
 scenenn_data
 ├── 123
-│   ├── depth        
-│   │   ├── depth00001.png    
-│   │   ├── ...       
+│   ├── depth
+│   │   ├── depth00001.png
+│   │   ├── ...
 │   ├── image
-│   │   ├── image00001.png    
-│   │   ├── ...          
-│   ├── mask  
-│   │   ├── mask00001.png    
-│   │   ├── ...                
-│   ├── timestamp.txt      
-│   ├── trajectory.log        
+│   │   ├── image00001.png
+│   │   ├── ...
+│   ├── mask
+│   │   ├── mask00001.png
+│   │   ├── ...
+│   ├── timestamp.txt
+│   ├── trajectory.log
 │   ├── ...
 └── intrinsic
-    ├──  asus.ini  
+    ├──  asus.ini
     ├──  kinect2.ini
 ```
 
