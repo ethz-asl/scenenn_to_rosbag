@@ -4,7 +4,7 @@ project(scenenn_ros_tools)
 find_package(catkin_simple REQUIRED)
 catkin_simple(ALL_DEPS_REQUIRED)
 
-catkin_install_python(PROGRAMS scenenn_to_rosbag.py
+catkin_install_python(PROGRAMS nodes/scenenn_to_rosbag.py
                       DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 cs_install()

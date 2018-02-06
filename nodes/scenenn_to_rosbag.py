@@ -59,17 +59,17 @@ def convert_rgbd_to_pcl(rgb_image, depth_image, camera_model):
     constant_x = 1 / camera_model.fx()
     constant_y = 1 / camera_model.fy()
 
-    pointcloud_xzyrgb_fields = [
+    pointcloud_xyzrgb_fields = [
         PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
         PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
         PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
         PointField(name='rgb', offset=12, datatype=PointField.UINT32, count=1)
     ]
 
-    vs = np.array([(v - center_x) * constant_x
-                   for v in range(0, depth_image.shape[1])])
-    us = np.array([(u - center_y) * constant_y
-                   for u in range(0, depth_image.shape[0])])
+    vs = np.array(
+        [(v - center_x) * constant_x for v in range(0, depth_image.shape[1])])
+    us = np.array(
+        [(u - center_y) * constant_y for u in range(0, depth_image.shape[0])])
 
     # Convert depth from mm to m.
     depth_image = depth_image / 1000.0
@@ -81,22 +81,22 @@ def convert_rgbd_to_pcl(rgb_image, depth_image, camera_model):
     compressed = stacked.compressed()
     pointcloud = compressed.reshape((int(compressed.shape[0] / 6), 6))
 
-    pointcloud = [[
-        point[0], point[1], point[2],
-        pack_rgb(point[3], point[4], point[5])
-    ] for point in pointcloud]
+    pointcloud = np.hstack((pointcloud[:, 0:3],
+                            pack_rgb(*pointcloud.T[3:6])[:, None]))
+    pointcloud = [[point[0], point[1], point[2], point[3]]
+                  for point in pointcloud]
 
-    pointcloud = pc2.create_cloud(Header(), pointcloud_xzyrgb_fields,
+    pointcloud = pc2.create_cloud(Header(), pointcloud_xyzrgb_fields,
                                   pointcloud)
     return pointcloud
 
 
 def pack_rgb(red, green, blue):
-    # Pack the 3 RGB channels into a single UINT32 field.
+    # Pack the 3 RGB channels into a single INT field.
     return np.bitwise_or(
         np.bitwise_or(
-            np.left_shift(red.astype(np.uint8), 16),
-            np.left_shift(green.astype(np.uint8), 8)), blue.astype(np.uint8))
+            np.left_shift(red.astype(np.int64), 16),
+            np.left_shift(green.astype(np.int64), 8)), blue.astype(np.int64))
 
 
 def pack_rgba(red, green, blue, alpha):
@@ -106,8 +106,8 @@ def pack_rgba(red, green, blue, alpha):
         np.bitwise_or(
             np.left_shift(green.astype(np.uint8), 16),
             np.bitwise_or(
-                np.left_shift(blue.astype(np.uint8), 8),
-                alpha.astype(np.uint8))))
+                np.left_shift(blue.astype(np.uint8), 8), alpha.astype(
+                    np.uint8))))
 
 
 def parse_timestamps(scenenn_path, scene):
@@ -236,7 +236,8 @@ def publish(scenenn_path, scene, output_bag, to_frame):
     header = Header(frame_id=frame_id)
     cvbridge = CvBridge()
 
-    frame = 1
+    # Start from frame 2 as frame 1 has timestamp 0.0, not working in ROS.
+    frame = 2
     while not rospy.is_shutdown() and frame < (to_frame + 1):
         timestamp = rospy.Time.from_sec(
             timestamps[frame] / np.power(10.0, 6.0))
@@ -295,7 +296,6 @@ def publish(scenenn_path, scene, output_bag, to_frame):
                 output_bag.write('/scenenn_node/object_segment',
                                  object_segment_pcl,
                                  object_segment_pcl.header.stamp)
-
         if (publish_scene_pcl):
             # Publish the scene from the current view as pointcloud.
             scene_pcl = convert_rgbd_to_pcl(rgb_image, depth_image,
@@ -303,7 +303,6 @@ def publish(scenenn_path, scene, output_bag, to_frame):
             scene_pcl.header = header
 
             output_bag.write('/scenenn_node/scene', scene_pcl, timestamp)
-
         if (publish_rgbd):
             # Publish the RGBD data.
             rgb_msg = cvbridge.cv2_to_imgmsg(rgb_image, "8UC3")
@@ -320,7 +319,6 @@ def publish(scenenn_path, scene, output_bag, to_frame):
             output_bag.write('/camera/rgb/camera_info', camera_info, timestamp)
             output_bag.write('/camera/depth/camera_info', camera_info,
                              timestamp)
-
         if (publish_instances):
             # Publish the instance data.
             color_instance_msg = cvbridge.cv2_to_imgmsg(
@@ -328,7 +326,6 @@ def publish(scenenn_path, scene, output_bag, to_frame):
             color_instance_msg.header = header
             output_bag.write('/camera/instances/image_raw', color_instance_msg,
                              timestamp)
-
         print("Dataset timestamp: " + str(timestamp.secs) + "." +
               '{:09}'.format(timestamp.nsecs) + "     Frame: " + str(frame) +
               " / " + str(len(timestamps)))
