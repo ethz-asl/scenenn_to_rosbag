@@ -1,9 +1,9 @@
 # Interfacing SceneNN and ROS
-Tools for publishing the SceneNN datasets via ROS messages.
+Tools for converting the SceneNN dataset to ROS messages in a rosbag.
 
 ## How to use these tools
-1. Follow the instructions in [scenenn](https://github.com/scenenn/scenenn) and download the SceneNN data.
-Your folder structure should be at the and as follows:
+1. Follow the instructions in the [scenenn repository](https://github.com/scenenn/scenenn) and download the SceneNN data.
+Your `scenenn_dat`a folder structure should be at the end as follows:
 
 ```
 scenenn_data
@@ -26,13 +26,22 @@ scenenn_data
 ```
 
 2. Clone this repository to the `src` folder of your catkin workspace, build your workspace and source it.
-3. Run the script to write the SceneNN data to a rosbag as a ROS node with the following command:
+
+    ```bash
+    cd <catkin_ws>/src
+    git clone git@github.com:ethz-asl/scenenn_ros_tools.git
+    catkin build
+    source <catkin_ws>/devel/setup.bash
+    ```
+
+3. Make the Python script executable and run it as a ROS node to write the SceneNN data to a rosbag.
 
 ```bash
-$ rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder /PATH/TO/SCENENN_DATA -scene_id SCENE_ID_TO_READ -output_bag SCENENN.BAG
+cd scenenn_ros_tools && chmod +x nodes/scenenn_to_rosbag.py
+rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder PATH/TO/scenenn_data -scene_id SCENE_ID -to_frame TO_FRAME -output_bag OUTPUT_BAG
 ```
 
 For example:
 ```bash
-$ rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder scenenn_data -scene_id 066 -output_bag scenenn_066.bag
+rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder ../../../scenenn/download/scenenn_data/ -scene_id 066 -output_bag scenenn_066.bag
 ```
