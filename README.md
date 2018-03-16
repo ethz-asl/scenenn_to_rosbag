@@ -5,25 +5,25 @@ Tools for converting the SceneNN dataset to ROS messages in a rosbag.
 1. Follow the instructions in the [scenenn repository](https://github.com/scenenn/scenenn) and download the SceneNN data.
 Your `scenenn_dat`a folder structure should be at the end as follows:
 
-```
-scenenn_data
-├── 123
-│   ├── depth
-│   │   ├── depth00001.png
-│   │   ├── ...
-│   ├── image
-│   │   ├── image00001.png
-│   │   ├── ...
-│   ├── mask
-│   │   ├── mask00001.png
-│   │   ├── ...
-│   ├── timestamp.txt
-│   ├── trajectory.log
-│   ├── ...
-└── intrinsic
-    ├──  asus.ini
-    ├──  kinect2.ini
-```
+    ```
+    scenenn_data
+    ├── 123
+    │   ├── depth
+    │   │   ├── depth00001.png
+    │   │   ├── ...
+    │   ├── image
+    │   │   ├── image00001.png
+    │   │   ├── ...
+    │   ├── mask
+    │   │   ├── mask00001.png
+    │   │   ├── ...
+    │   ├── timestamp.txt
+    │   ├── trajectory.log
+    │   ├── ...
+    └── intrinsic
+        ├──  asus.ini
+        ├──  kinect2.ini
+    ```
 
 2. Clone this repository to the `src` folder of your catkin workspace, build your workspace and source it.
 
@@ -36,12 +36,12 @@ scenenn_data
 
 3. Make the Python script executable and run it as a ROS node to write the SceneNN data to a rosbag.
 
-```bash
-cd scenenn_ros_tools && chmod +x nodes/scenenn_to_rosbag.py
-rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder PATH/TO/scenenn_data -scene_id SCENE_ID -to_frame TO_FRAME -output_bag OUTPUT_BAG
-```
+    ```bash
+    cd scenenn_ros_tools && chmod +x nodes/scenenn_to_rosbag.py
+    rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder PATH/TO/scenenn_data -scene_id SCENE_ID -to_frame TO_FRAME -output_bag OUTPUT_BAG
+    ```
 
-For example:
-```bash
-rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder ../../../scenenn/download/scenenn_data/ -scene_id 066 -output_bag scenenn_066.bag
-```
+    For example:
+    ```bash
+    rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder ../../../scenenn/download/scenenn_data/ -scene_id 066 -output_bag scenenn_066.bag
+    ```
