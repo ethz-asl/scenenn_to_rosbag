@@ -217,7 +217,7 @@ def publish(scenenn_path, scene, output_bag, to_frame):
     frame_id = "/scenenn_camera_frame"
 
     publish_object_segments = True
-    publish_scene_pcl = True
+    publish_scene_pcl = False
     publish_rgbd = True
     publish_instances = True
 

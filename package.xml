@@ -2,7 +2,7 @@
 <package format="2">
   <name>scenenn_ros_tools</name>
   <version>1.0.0</version>
-  <description>Publish SceneNN data via ROS</description>
+  <description>Tools for converting SceneNN to ROS bag files.</description>
 
   <author email="margarita.grinvald@mavt.ethz.ch">Margarita Grinvald</author>
 

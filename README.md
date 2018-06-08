@@ -1,9 +1,9 @@
 # Interfacing SceneNN and ROS
-Tools for converting the SceneNN dataset to ROS messages in a rosbag.
+Tools for working with the [SceneNN](http://people.sutd.edu.sg/~saikit/projects/sceneNN/) dataset and converting it to a ROS bag.
 
 ## How to use these tools
 1. Follow the instructions in the [scenenn repository](https://github.com/scenenn/scenenn) and download the SceneNN data.
-Your `scenenn_dat`a folder structure should be at the end as follows:
+Your `scenenn_data` folder structure should be at the end as follows:
 
     ```
     scenenn_data
