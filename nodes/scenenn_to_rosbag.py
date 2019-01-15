@@ -244,7 +244,7 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
         except KeyError:
             # The trajectory log file sometimes does not contain information
             # for the last frames, which should therefore be ignored.
-            pass
+            break
         publishTransform(transform, timestamp, frame_id, output_bag)
         header.stamp = timestamp
 
@@ -261,6 +261,8 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
         instance_image = pack_rgba(
             instance_image_rgb[:, :, 0], instance_image_rgb[:, :, 1],
             instance_image_rgb[:, :, 2], instance_image_rgb[:, :, 3])
+        # From 8-bit unsigned to 16-bit unsigned.
+        instance_image_gray = np.uint16(instance_image)
 
         # TODO(ff): Add an option to match the labeled image to the RGB/depth
         # image. Either a static offset or probably better some optimization
@@ -330,7 +332,7 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
                                  timestamp)
             else:
                 gray_instance_msg = cvbridge.cv2_to_imgmsg(
-                    instance_image, "mono8")
+                    instance_image_gray, "16UC1")
                 gray_instance_msg.header = header
                 output_bag.write('/camera/instances/image_raw', gray_instance_msg,
                                  timestamp)
