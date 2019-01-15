@@ -220,6 +220,7 @@ def publish(scenenn_path, scene, output_bag, to_frame):
     publish_scene_pcl = True
     publish_rgbd = True
     publish_instances = True
+    publish_instances_color = False
 
     # Set camera information and model.
     camera_info = parse_camera_info(scenenn_path)
@@ -252,6 +253,9 @@ def publish(scenenn_path, scene, output_bag, to_frame):
         instance_image_rgb = cv2.imread(
             instance_path_from_frame(scenenn_path, scene, frame),
             cv2.IMREAD_UNCHANGED)
+        instance_image_gray = cv2.imread(
+            instance_path_from_frame(scenenn_path, scene, frame),
+            cv2.IMREAD_GRAYSCALE)
         instance_image = pack_rgba(
             instance_image_rgb[:, :, 0], instance_image_rgb[:, :, 1],
             instance_image_rgb[:, :, 2], instance_image_rgb[:, :, 3])
@@ -316,11 +320,18 @@ def publish(scenenn_path, scene, output_bag, to_frame):
 
         if (publish_instances):
             # Publish the instance data.
-            color_instance_msg = cvbridge.cv2_to_imgmsg(
-                instance_image_rgb, "8UC4")
-            color_instance_msg.header = header
-            output_bag.write('/camera/instances/image_raw', color_instance_msg,
-                             timestamp)
+            if (publish_instances_color):
+                color_instance_msg = cvbridge.cv2_to_imgmsg(
+                    instance_image_rgb, "8UC4")
+                color_instance_msg.header = header
+                output_bag.write('/camera/instances/image_raw', color_instance_msg,
+                                 timestamp)
+            else:
+                gray_instance_msg = cvbridge.cv2_to_imgmsg(
+                    instance_image_gray, "mono8")
+                gray_instance_msg.header = header
+                output_bag.write('/camera/instances/image_raw', gray_instance_msg,
+                                 timestamp)
         print("Dataset timestamp: " + '{:4}'.format(timestamp.secs) + "." +
               '{:09}'.format(timestamp.nsecs) + "     Frame: " +
               '{:3}'.format(frame) + " / " + str(len(timestamps)))
