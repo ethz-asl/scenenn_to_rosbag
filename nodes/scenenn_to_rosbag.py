@@ -212,11 +212,11 @@ def publishTransform(transform, timestamp, frame_id, output_bag):
     output_bag.write('/tf', msg, timestamp)
 
 
-def publish(scenenn_path, scene, output_bag, to_frame):
+def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
     rospy.init_node('scenenn_node', anonymous=True)
     frame_id = "/scenenn_camera_frame"
 
-    publish_object_segments = True
+    publish_object_segments = False
     publish_scene_pcl = True
     publish_rgbd = True
     publish_instances = True
@@ -239,7 +239,12 @@ def publish(scenenn_path, scene, output_bag, to_frame):
     while not rospy.is_shutdown() and frame < (to_frame + 1):
         timestamp = rospy.Time.from_sec(
             timestamps[frame] / np.power(10.0, 6.0))
-        transform = trajectory[frame - 1]
+        try:
+            transform = trajectory[frame - 1]
+        except KeyError:
+            # The trajectory log file sometimes does not contain information
+            # for the last frames, which should therefore be ignored.
+            pass
         publishTransform(transform, timestamp, frame_id, output_bag)
         header.stamp = timestamp
 
@@ -336,7 +341,7 @@ def publish(scenenn_path, scene, output_bag, to_frame):
               '{:09}'.format(timestamp.nsecs) + "     Frame: " +
               '{:3}'.format(frame) + " / " + str(len(timestamps)))
 
-        frame += 1
+        frame += frame_step
 
 
 if __name__ == '__main__':
@@ -345,6 +350,9 @@ if __name__ == '__main__':
     parser.add_argument(
         "-scenenn_data_folder", help="Path of the scenenn_data folder.")
     parser.add_argument("-scene_id", help="ID of the SceneNN scene to read.")
+    parser.add_argument("-frame_step", help="Number of frames in one step of "
+                        "the rosbag, i.e., (frame_step - 1) frames are skipped "
+                        "after each frame inserted in the rosbag.")
     parser.add_argument("-to_frame", help="Number of frames to write to bag.")
     parser.add_argument("-output_bag", help="Path of the output rosbag.")
 
@@ -355,6 +363,12 @@ if __name__ == '__main__':
         scene = args.scene_id
     if args.output_bag:
         output_bag_path = args.output_bag
+    if args.frame_step:
+        frame_step = int(args.frame_step)
+        if frame_step <= 0:
+            raise ValueError("Frame step should be at least 1. Exiting.")
+    else:
+        frame_step = 1
     if args.to_frame:
         to_frame = int(args.to_frame)
     else:
@@ -362,7 +376,7 @@ if __name__ == '__main__':
 
     try:
         bag = rosbag.Bag(output_bag_path, 'w')
-        publish(scenenn_path, scene, bag, to_frame)
+        publish(scenenn_path, scene, bag, frame_step, to_frame)
 
     except rospy.ROSInterruptException:
         pass
