@@ -258,9 +258,6 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
         instance_image_rgb = cv2.imread(
             instance_path_from_frame(scenenn_path, scene, frame),
             cv2.IMREAD_UNCHANGED)
-        instance_image_gray = cv2.imread(
-            instance_path_from_frame(scenenn_path, scene, frame),
-            cv2.IMREAD_GRAYSCALE)
         instance_image = pack_rgba(
             instance_image_rgb[:, :, 0], instance_image_rgb[:, :, 1],
             instance_image_rgb[:, :, 2], instance_image_rgb[:, :, 3])
@@ -333,7 +330,7 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
                                  timestamp)
             else:
                 gray_instance_msg = cvbridge.cv2_to_imgmsg(
-                    instance_image_gray, "mono8")
+                    instance_image, "mono8")
                 gray_instance_msg.header = header
                 output_bag.write('/camera/instances/image_raw', gray_instance_msg,
                                  timestamp)
