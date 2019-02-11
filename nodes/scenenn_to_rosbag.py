@@ -99,12 +99,12 @@ def pack_bgr(red, green, blue):
 def pack_rgba(red, green, blue, alpha):
     # Pack the 4 RGBA channels into a single UINT32 field.
     return np.bitwise_or(
-        np.left_shift(red.astype(np.uint8), 24),
+        np.left_shift(red.astype(np.uint32), 24),
         np.bitwise_or(
-            np.left_shift(green.astype(np.uint8), 16),
+            np.left_shift(green.astype(np.uint32), 16),
             np.bitwise_or(
-                np.left_shift(blue.astype(np.uint8), 8), alpha.astype(
-                    np.uint8))))
+                np.left_shift(blue.astype(np.uint32), 8), alpha.astype(
+                    np.uint32))))
 
 
 def parse_timestamps(scenenn_path, scene):
