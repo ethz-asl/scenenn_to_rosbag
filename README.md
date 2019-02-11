@@ -38,10 +38,10 @@ Your `scenenn_data` folder structure should be at the end as follows:
 
     ```bash
     cd scenenn_ros_tools && chmod +x nodes/scenenn_to_rosbag.py
-    rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder PATH/TO/scenenn_data -scene_id SCENE_ID -to_frame TO_FRAME -output_bag OUTPUT_BAG
+    rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder PATH/TO/scenenn_data -scene_id SCENE_ID -to_frame TO_FRAME -frame_step FRAME_STEP -output_bag OUTPUT_BAG
     ```
 
     For example:
     ```bash
-    rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder ../../../scenenn/download/scenenn_data/ -scene_id 066 -output_bag scenenn_066.bag
+    rosrun scenenn_ros_tools scenenn_to_rosbag.py -scenenn_data_folder ../../../scenenn/download/scenenn_data/ -scene_id 066 -frame_step 1 -output_bag scenenn_066.bag
     ```
