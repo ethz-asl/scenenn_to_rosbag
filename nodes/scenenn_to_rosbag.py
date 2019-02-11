@@ -216,7 +216,7 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
     rospy.init_node('scenenn_node', anonymous=True)
     frame_id = "/scenenn_camera_frame"
 
-    publish_object_segments = False
+    publish_object_segments = True
     publish_scene_pcl = True
     publish_rgbd = True
     publish_instances = True
