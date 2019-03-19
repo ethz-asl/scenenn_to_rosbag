@@ -99,12 +99,12 @@ def pack_bgr(red, green, blue):
 def pack_rgba(red, green, blue, alpha):
     # Pack the 4 RGBA channels into a single UINT32 field.
     return np.bitwise_or(
-        np.left_shift(red.astype(np.uint8), 24),
+        np.left_shift(red.astype(np.uint32), 24),
         np.bitwise_or(
-            np.left_shift(green.astype(np.uint8), 16),
+            np.left_shift(green.astype(np.uint32), 16),
             np.bitwise_or(
-                np.left_shift(blue.astype(np.uint8), 8), alpha.astype(
-                    np.uint8))))
+                np.left_shift(blue.astype(np.uint32), 8), alpha.astype(
+                    np.uint32))))
 
 
 def parse_timestamps(scenenn_path, scene):
@@ -212,7 +212,7 @@ def publishTransform(transform, timestamp, frame_id, output_bag):
     output_bag.write('/tf', msg, timestamp)
 
 
-def publish(scenenn_path, scene, output_bag, to_frame):
+def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
     rospy.init_node('scenenn_node', anonymous=True)
     frame_id = "/scenenn_camera_frame"
 
@@ -220,6 +220,7 @@ def publish(scenenn_path, scene, output_bag, to_frame):
     publish_scene_pcl = True
     publish_rgbd = True
     publish_instances = True
+    publish_instances_color = False
 
     # Set camera information and model.
     camera_info = parse_camera_info(scenenn_path)
@@ -238,7 +239,12 @@ def publish(scenenn_path, scene, output_bag, to_frame):
     while not rospy.is_shutdown() and frame < (to_frame + 1):
         timestamp = rospy.Time.from_sec(
             timestamps[frame] / np.power(10.0, 6.0))
-        transform = trajectory[frame - 1]
+        try:
+            transform = trajectory[frame - 1]
+        except KeyError:
+            # The trajectory log file sometimes does not contain information
+            # for the last frames, which should therefore be ignored.
+            break
         publishTransform(transform, timestamp, frame_id, output_bag)
         header.stamp = timestamp
 
@@ -255,6 +261,8 @@ def publish(scenenn_path, scene, output_bag, to_frame):
         instance_image = pack_rgba(
             instance_image_rgb[:, :, 0], instance_image_rgb[:, :, 1],
             instance_image_rgb[:, :, 2], instance_image_rgb[:, :, 3])
+        # From 8-bit unsigned to 16-bit unsigned.
+        instance_image_gray = np.uint16(instance_image)
 
         # TODO(ff): Add an option to match the labeled image to the RGB/depth
         # image. Either a static offset or probably better some optimization
@@ -316,16 +324,23 @@ def publish(scenenn_path, scene, output_bag, to_frame):
 
         if (publish_instances):
             # Publish the instance data.
-            color_instance_msg = cvbridge.cv2_to_imgmsg(
-                instance_image_rgb, "8UC4")
-            color_instance_msg.header = header
-            output_bag.write('/camera/instances/image_raw', color_instance_msg,
-                             timestamp)
+            if (publish_instances_color):
+                color_instance_msg = cvbridge.cv2_to_imgmsg(
+                    instance_image_rgb, "8UC4")
+                color_instance_msg.header = header
+                output_bag.write('/camera/instances/image_raw', color_instance_msg,
+                                 timestamp)
+            else:
+                gray_instance_msg = cvbridge.cv2_to_imgmsg(
+                    instance_image_gray, "16UC1")
+                gray_instance_msg.header = header
+                output_bag.write('/camera/instances/image_raw', gray_instance_msg,
+                                 timestamp)
         print("Dataset timestamp: " + '{:4}'.format(timestamp.secs) + "." +
               '{:09}'.format(timestamp.nsecs) + "     Frame: " +
               '{:3}'.format(frame) + " / " + str(len(timestamps)))
 
-        frame += 1
+        frame += frame_step
 
 
 if __name__ == '__main__':
@@ -334,6 +349,9 @@ if __name__ == '__main__':
     parser.add_argument(
         "-scenenn_data_folder", help="Path of the scenenn_data folder.")
     parser.add_argument("-scene_id", help="ID of the SceneNN scene to read.")
+    parser.add_argument("-frame_step", help="Number of frames in one step of "
+                        "the rosbag, i.e., (frame_step - 1) frames are skipped "
+                        "after each frame inserted in the rosbag.")
     parser.add_argument("-to_frame", help="Number of frames to write to bag.")
     parser.add_argument("-output_bag", help="Path of the output rosbag.")
 
@@ -344,6 +362,12 @@ if __name__ == '__main__':
         scene = args.scene_id
     if args.output_bag:
         output_bag_path = args.output_bag
+    if args.frame_step:
+        frame_step = int(args.frame_step)
+        if frame_step <= 0:
+            raise ValueError("Frame step should be at least 1. Exiting.")
+    else:
+        frame_step = 1
     if args.to_frame:
         to_frame = int(args.to_frame)
     else:
@@ -351,7 +375,7 @@ if __name__ == '__main__':
 
     try:
         bag = rosbag.Bag(output_bag_path, 'w')
-        publish(scenenn_path, scene, bag, to_frame)
+        publish(scenenn_path, scene, bag, frame_step, to_frame)
 
     except rospy.ROSInterruptException:
         pass
