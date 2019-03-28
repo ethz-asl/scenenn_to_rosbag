@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import sys
 import argparse
 import numpy as np
 import rosbag
@@ -49,7 +50,7 @@ def intrinsics_path(scenenn_path):
     return os.path.join(intrinsics_path, 'asus.ini')
 
 
-def convert_rgbd_to_pcl(rgb_image, depth_image, camera_model):
+def convert_bgrd_to_pcl(bgr_image, depth_image, camera_model):
     center_x = camera_model.cx()
     center_y = camera_model.cy()
 
@@ -74,7 +75,7 @@ def convert_rgbd_to_pcl(rgb_image, depth_image, camera_model):
     x = np.multiply(depth_image, vs)
     y = depth_image * us[:, np.newaxis]
 
-    stacked = np.ma.dstack((x, y, depth_image, rgb_image))
+    stacked = np.ma.dstack((x, y, depth_image, bgr_image))
     compressed = stacked.compressed()
     pointcloud = compressed.reshape((int(compressed.shape[0] / 6), 6))
 
@@ -88,22 +89,22 @@ def convert_rgbd_to_pcl(rgb_image, depth_image, camera_model):
     return pointcloud
 
 
-def pack_bgr(red, green, blue):
-    # Pack the 3 RGB channels into a single INT field.
+def pack_bgr(blue, green, red):
+    # Pack the 3 BGR channels into a single UINT32 field as RGB.
     return np.bitwise_or(
         np.bitwise_or(
-            np.left_shift(blue.astype(np.int64), 16),
-            np.left_shift(green.astype(np.int64), 8)), red.astype(np.int64))
+            np.left_shift(red.astype(np.uint32), 16),
+            np.left_shift(green.astype(np.uint32), 8)), blue.astype(np.uint32))
 
 
-def pack_rgba(red, green, blue, alpha):
-    # Pack the 4 RGBA channels into a single UINT32 field.
+def pack_bgra(blue, green, red, alpha):
+    # Pack the 4 BGRA channels into a single UINT32 field.
     return np.bitwise_or(
-        np.left_shift(red.astype(np.uint32), 24),
+        np.left_shift(blue.astype(np.uint32), 24),
         np.bitwise_or(
             np.left_shift(green.astype(np.uint32), 16),
             np.bitwise_or(
-                np.left_shift(blue.astype(np.uint32), 8), alpha.astype(
+                np.left_shift(red.astype(np.uint32), 8), alpha.astype(
                     np.uint32))))
 
 
@@ -117,6 +118,8 @@ def parse_timestamps(scenenn_path, scene):
     except IOError:
         print('SceneNN timestamp data not found at location:{0}'.format(
             timestamp_path(scenenn_path, scene)))
+        sys.exit('Please ensure you have downloaded the timestamp data.')
+
     return timestamps
 
 
@@ -138,6 +141,7 @@ def parse_trajectory(scenenn_path, scene):
     except IOError:
         print('SceneNN trajectory data not found at location:{0}'.format(
             trajectory_path(scenenn_path, scene)))
+        sys.exit('Please ensure you have downloaded the trajectory data.')
     return trajectory
 
 
@@ -149,8 +153,9 @@ def parse_intrinsics(scenenn_path):
                 ws = line.split()
                 intrinsics[ws[0]] = float(ws[1])
     except IOError:
-        print('SceneNN intrinsics data not found at location:{0}'.format(
+        print('SceneNN intrinsics data not found at location: {0}'.format(
             intrinsics_path(scenenn_path)))
+        sys.exit('Please ensure you have downloaded the intrinsics data.')
     return intrinsics
 
 
@@ -190,7 +195,7 @@ def parse_camera_info(scenenn_path):
     return camera_info
 
 
-def publishTransform(transform, timestamp, frame_id, output_bag):
+def writeTransform(transform, timestamp, frame_id, output_bag):
     scale, shear, angles, transl, persp = tf.transformations.decompose_matrix(
         transform)
     rotation = tf.transformations.quaternion_from_euler(*angles)
@@ -212,15 +217,20 @@ def publishTransform(transform, timestamp, frame_id, output_bag):
     output_bag.write('/tf', msg, timestamp)
 
 
-def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
+def convert(scenenn_path, scene, to_frame, output_bag):
     rospy.init_node('scenenn_node', anonymous=True)
     frame_id = "/scenenn_camera_frame"
 
-    publish_object_segments = True
-    publish_scene_pcl = True
-    publish_rgbd = True
-    publish_instances = True
-    publish_instances_color = False
+    # Write RGB and depth images.
+    write_rgbd = True
+    # Write instance image.
+    write_instances = True
+    # Write colorized instance image.
+    write_instances_color = False
+    # Write colored pointclouds of the instance segments.
+    write_object_segments = False
+    # Write colored pointcloud of the whole scene.
+    write_scene_pcl = False
 
     # Set camera information and model.
     camera_info = parse_camera_info(scenenn_path)
@@ -234,43 +244,58 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
     header = Header(frame_id=frame_id)
     cvbridge = CvBridge()
 
-    # Start from frame 2 as frame 1 has timestamp 0.0, not working in ROS.
-    frame = 2
-    while not rospy.is_shutdown() and frame < (to_frame + 1):
+    # Skip frame 1 as its timestamp (0.00) does not work in ROS.
+    # TODO(margaritaG): avoid skipping the first frame, simply shift all timestamps.
+    start_frame = 2
+    frame = start_frame
+    while (not rospy.is_shutdown() and frame < (to_frame + 1)
+           and frame < len(timestamps)):
         timestamp = rospy.Time.from_sec(
             timestamps[frame] / np.power(10.0, 6.0))
         try:
             transform = trajectory[frame - 1]
         except KeyError:
-            # The trajectory log file sometimes does not contain information
-            # for the last frames, which should therefore be ignored.
-            break
-        publishTransform(transform, timestamp, frame_id, output_bag)
+            sys.exit(
+                'It is common for transform data to be missing in the last' \
+                'few frames of a SceneNN sequence. Stopping reading frames.'
+            )
+        writeTransform(transform, timestamp, frame_id, output_bag)
         header.stamp = timestamp
 
         # Read RGB, Depth and Instance images for the current view.
-        rgb_image = cv2.imread(
+        bgr_image = cv2.imread(
             rgb_path_from_frame(scenenn_path, scene, frame),
             cv2.IMREAD_UNCHANGED)
         depth_image = cv2.imread(
             depth_path_from_frame(scenenn_path, scene, frame),
             cv2.IMREAD_UNCHANGED)
-        instance_image_rgb = cv2.imread(
+        if (not os.path.exists(
+                instance_path_from_frame(scenenn_path, scene, frame))):
+            print('SceneNN instance data not found at {0}'.format(
+                instance_path_from_frame(scenenn_path, scene, frame)))
+            if frame == start_frame:
+                sys.exit(
+                    'Please either ensure you have downloaded the instance '\
+                    'data for this scene or disable instance writing.')
+            else:
+                sys.exit(
+                    'It is common for instance data to be missing in the last' \
+                    'few frames of a SceneNN sequence. Stopping reading frames.'
+                )
+        instance_image_bgra = cv2.imread(
             instance_path_from_frame(scenenn_path, scene, frame),
             cv2.IMREAD_UNCHANGED)
-        instance_image = pack_rgba(
-            instance_image_rgb[:, :, 0], instance_image_rgb[:, :, 1],
-            instance_image_rgb[:, :, 2], instance_image_rgb[:, :, 3])
-        # From 8-bit unsigned to 16-bit unsigned.
-        instance_image_gray = np.uint16(instance_image)
 
-        # TODO(ff): Add an option to match the labeled image to the RGB/depth
-        # image. Either a static offset or probably better some optimization
-        # that aligns the images (e.g. based on matching edges and optimize the
-        # scale and a translation).
+        instance_image_mono_32 = pack_bgra(
+            instance_image_bgra[:, :, 0], instance_image_bgra[:, :, 1],
+            instance_image_bgra[:, :, 2], instance_image_bgra[:, :, 3])
 
-        if (publish_object_segments):
-            # Publish all the instances in the current view as pointclouds.
+        # From uint32 BGRA to uint16 (RA-only).
+        # Warning: this is an unsafe casting, as values cannot be preserved.
+        instance_image = np.uint16(instance_image_mono_32)
+
+        if (write_object_segments):
+            # Write all the instances in the current view as pointclouds.
             instances_in_current_frame = np.unique(instance_image)
 
             for instance in instances_in_current_frame:
@@ -284,33 +309,33 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
                 if (not instance_mask.any()):
                     instance_mask_3D = np.broadcast_arrays(
                         instance_mask[np.newaxis, np.newaxis, np.newaxis],
-                        rgb_image)
+                        bgr_image)
                 else:
                     instance_mask_3D = np.broadcast_arrays(
-                        instance_mask[:, :, np.newaxis], rgb_image)
+                        instance_mask[:, :, np.newaxis], bgr_image)
 
-                masked_rgb_image = np.ma.masked_where(instance_mask_3D[0],
-                                                      rgb_image)
+                masked_bgr_image = np.ma.masked_where(instance_mask_3D[0],
+                                                      bgr_image)
 
-                object_segment_pcl = convert_rgbd_to_pcl(
-                    masked_rgb_image, masked_depth_image, camera_model)
+                object_segment_pcl = convert_bgrd_to_pcl(
+                    masked_bgr_image, masked_depth_image, camera_model)
                 object_segment_pcl.header = header
                 output_bag.write('/scenenn_node/object_segment',
                                  object_segment_pcl, timestamp)
 
-        if (publish_scene_pcl):
-            # Publish the scene from the current view as pointcloud.
-            scene_pcl = convert_rgbd_to_pcl(rgb_image, depth_image,
+        if (write_scene_pcl):
+            # Write the scene from the current view as pointcloud.
+            scene_pcl = convert_bgrd_to_pcl(bgr_image, depth_image,
                                             camera_model)
             scene_pcl.header = header
             output_bag.write('/scenenn_node/scene', scene_pcl, timestamp)
 
-        if (publish_rgbd):
-            # Publish the RGBD data.
-            rgb_msg = cvbridge.cv2_to_imgmsg(rgb_image, "8UC3")
-            rgb_msg.encoding = "bgr8"
-            rgb_msg.header = header
-            output_bag.write('/camera/rgb/image_raw', rgb_msg, timestamp)
+        if (write_rgbd):
+            # Write the RGBD data.
+            bgr_msg = cvbridge.cv2_to_imgmsg(bgr_image, "8UC3")
+            bgr_msg.encoding = "bgr8"
+            bgr_msg.header = header
+            output_bag.write('/camera/rgb/image_raw', bgr_msg, timestamp)
 
             depth_msg = cvbridge.cv2_to_imgmsg(depth_image, "16UC1")
             depth_msg.header = header
@@ -322,62 +347,70 @@ def publish(scenenn_path, scene, output_bag, frame_step, to_frame):
             output_bag.write('/camera/depth/camera_info', camera_info,
                              timestamp)
 
-        if (publish_instances):
-            # Publish the instance data.
-            if (publish_instances_color):
-                color_instance_msg = cvbridge.cv2_to_imgmsg(
-                    instance_image_rgb, "8UC4")
-                color_instance_msg.header = header
-                output_bag.write('/camera/instances/image_raw', color_instance_msg,
-                                 timestamp)
-            else:
-                gray_instance_msg = cvbridge.cv2_to_imgmsg(
-                    instance_image_gray, "16UC1")
-                gray_instance_msg.header = header
-                output_bag.write('/camera/instances/image_raw', gray_instance_msg,
-                                 timestamp)
+        if (write_instances):
+            # Write the instance data.
+            instance_msg = cvbridge.cv2_to_imgmsg(instance_image, "16UC1")
+            instance_msg.header = header
+            output_bag.write('/camera/instances/image_raw', instance_msg,
+                             timestamp)
+        if (write_instances_color):
+            instance_bgra_msg = cvbridge.cv2_to_imgmsg(instance_image_bgra,
+                                                       "8UC4")
+            instance_bgra_msg.header = header
+            output_bag.write('/camera/instances/image_rgb', instance_bgra_msg,
+                             timestamp)
+
         print("Dataset timestamp: " + '{:4}'.format(timestamp.secs) + "." +
               '{:09}'.format(timestamp.nsecs) + "     Frame: " +
               '{:3}'.format(frame) + " / " + str(len(timestamps)))
 
-        frame += frame_step
+        frame += 1
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Write SceneNN data to a rosbag.')
+        usage='''%(prog)s [-h] --scenenn-path PATH --scene-id ID
+                            [--limit NUM] [--output-bag NAME]''',
+        description='Write data from a SceneNN scene to a rosbag.')
     parser.add_argument(
-        "-scenenn_data_folder", help="Path of the scenenn_data folder.")
-    parser.add_argument("-scene_id", help="ID of the SceneNN scene to read.")
-    parser.add_argument("-frame_step", help="Number of frames in one step of "
-                        "the rosbag, i.e., (frame_step - 1) frames are skipped "
-                        "after each frame inserted in the rosbag.")
-    parser.add_argument("-to_frame", help="Number of frames to write to bag.")
-    parser.add_argument("-output_bag", help="Path of the output rosbag.")
+        "--scenenn-path",
+        required=True,
+        help="path to the scenenn_data folder",
+        metavar="PATH")
+    parser.add_argument(
+        "--scene-id",
+        required=True,
+        help="select the scene with id ID",
+        metavar="ID")
+    parser.add_argument(
+        "--limit",
+        default=np.inf,
+        type=int,
+        help="only write NUM frames to the bag (Default: infinite)",
+        metavar="NUM")
+    parser.add_argument(
+        "--output-bag",
+        default="scenenn.bag",
+        help="write to bag with name NAME.bag.",
+        metavar="NAME")
 
     args = parser.parse_args()
-    if args.scenenn_data_folder:
-        scenenn_path = args.scenenn_data_folder
-    if args.scene_id:
-        scene = args.scene_id
-    if args.output_bag:
-        output_bag_path = args.output_bag
-    if args.frame_step:
-        frame_step = int(args.frame_step)
-        if frame_step <= 0:
-            raise ValueError("Frame step should be at least 1. Exiting.")
-    else:
-        frame_step = 1
-    if args.to_frame:
-        to_frame = int(args.to_frame)
-    else:
-        to_frame = np.inf
+    scenenn_path = args.scenenn_path
+    scene = args.scene_id.zfill(3)
+    output_bag_path = args.output_bag
+    to_frame = args.limit
 
+    if not os.path.isdir(os.path.join(scenenn_path, scene)):
+        print("SceneNN scene data not found at {0}".format(
+            os.path.join(scenenn_path, scene)))
+        sys.exit('Please ensure you have downloaded the scene data.')
+
+    if not output_bag_path.endswith(".bag"):
+        output_bag_path = output_bag_path + ".bag"
+    output_bag = rosbag.Bag(output_bag_path, 'w')
     try:
-        bag = rosbag.Bag(output_bag_path, 'w')
-        publish(scenenn_path, scene, bag, frame_step, to_frame)
-
+        convert(scenenn_path, scene, to_frame, output_bag)
     except rospy.ROSInterruptException:
         pass
     finally:
-        bag.close()
+        output_bag.close()
