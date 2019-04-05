@@ -278,10 +278,12 @@ def convert(scenenn_path, scene, to_frame, output_bag):
                     'Please either ensure you have downloaded the instance '\
                     'data for this scene or disable instance writing.')
             else:
-                sys.exit(
-                    'It is common for instance data to be missing in the last' \
-                    'few frames of a SceneNN sequence. Stopping reading frames.'
+                print(
+                    'It is common for instance data to be missing ' \
+                    'for some frames. Ignoring.'
                 )
+                frame += 1
+                continue
         instance_image_bgra = cv2.imread(
             instance_path_from_frame(scenenn_path, scene, frame),
             cv2.IMREAD_UNCHANGED)
