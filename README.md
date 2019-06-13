@@ -1,5 +1,5 @@
 # Interfacing SceneNN and ROS
-Tools for working with the [SceneNN](http://scenenn.net/) dataset and converting it to a ROS bag.
+Dataset tools for working with the [SceneNN](http://scenenn.net/) dataset and converting its raw sequence data to a ROS bag.
 
 ## How to use these tools
 1. Follow the instructions in the [scenenn repository](https://github.com/scenenn/scenenn) and download the SceneNN data.
